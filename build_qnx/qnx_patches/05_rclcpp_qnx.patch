@@ -1,0 +1,17 @@
+diff --git a/rclcpp/include/rclcpp/memory_strategy.hpp b/rclcpp/include/rclcpp/memory_strategy.hpp
+index 67e183d0..1074af0a 100644
+--- a/rclcpp/include/rclcpp/memory_strategy.hpp
++++ b/rclcpp/include/rclcpp/memory_strategy.hpp
+@@ -39,7 +39,11 @@ namespace memory_strategy
+  * the rmw implementation after the executor waits for work, based on the number of entities that
+  * come through.
+  */
+-class RCLCPP_PUBLIC [[deprecated("The executor does not used this anymore")]] MemoryStrategy
++#if defined(__GNUC__) || defined(__clang__)
++class __attribute__((deprecated("The executor does not used this anymore"))) RCLCPP_PUBLIC MemoryStrategy
++#else
++class [[deprecated("The executor does not used this anymore")]] RCLCPP_PUBLIC MemoryStrategy
++#endif
+ {
+ public:
+   RCLCPP_SMART_PTR_DEFINITIONS_NOT_COPYABLE(MemoryStrategy)

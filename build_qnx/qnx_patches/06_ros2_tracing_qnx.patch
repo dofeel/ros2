@@ -1,0 +1,13 @@
+diff --git a/tracetools/CMakeLists.txt b/tracetools/CMakeLists.txt
+index 7f63e24..7bef50b 100644
+--- a/tracetools/CMakeLists.txt
++++ b/tracetools/CMakeLists.txt
+@@ -17,7 +17,7 @@ find_package(ament_cmake REQUIRED)
+ find_package(ament_cmake_gen_version_h REQUIRED)
+ find_package(ament_cmake_ros_core REQUIRED)
+ 
+-if(WIN32 OR APPLE OR ANDROID OR BSD)
++if(WIN32 OR APPLE OR ANDROID OR BSD OR QNX)
+   set(DISABLED_DEFAULT ON)
+   set(STATUS_CHECKING_TOOL_DEFAULT OFF)
+ else()

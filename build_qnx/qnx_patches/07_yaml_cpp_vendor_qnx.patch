@@ -1,0 +1,14 @@
+diff --git a/cmake/Modules/Findyaml-cpp.cmake b/cmake/Modules/Findyaml-cpp.cmake
+index 8d5e74b..efc7833 100644
+--- a/cmake/Modules/Findyaml-cpp.cmake
++++ b/cmake/Modules/Findyaml-cpp.cmake
+@@ -19,6 +19,9 @@ if(yaml-cpp_FOUND)
+   if (NOT TARGET yaml-cpp::yaml-cpp)
+     add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+   endif()
++  if (NOT TARGET yaml-cpp)
++    add_library(yaml-cpp ALIAS yaml-cpp::yaml-cpp)
++  endif()
+ else()
+   # Otherwise, rely on pkg-config
+   find_package(PkgConfig QUIET)

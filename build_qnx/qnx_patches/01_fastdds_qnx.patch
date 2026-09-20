@@ -1,0 +1,87 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a4462b0c2..adc0817a5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -31,6 +31,10 @@ endif()
+ ###############################################################################
+ project(fastdds VERSION "3.6.2.0" LANGUAGES C CXX)
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL "QNX")
++    set(QNX 1)
++endif()
++
+ set(PROJECT_NAME_LARGE "Fast DDS")
+ string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UPPER)
+ 
+@@ -84,6 +88,10 @@ else()
+         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl")
+     endif()
+ 
++    if(QNX)
++        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds -Wno-stringop-overflow -Wno-free-nonheap-object")
++    endif()
++
+     if(EPROSIMA_EXTRA_CMAKE_CXX_FLAGS)
+         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EPROSIMA_EXTRA_CMAKE_CXX_FLAGS}")
+     endif()
+@@ -193,7 +201,7 @@ endif()
+ # Set warnings as errors if the thread sanitizer is not being used
+ ###############################################################################
+ string(FIND ${CMAKE_CXX_FLAGS} "-fsanitize=thread" SANITIZER_THREAD)
+-if (${SANITIZER_THREAD} EQUAL -1)
++if (${SANITIZER_THREAD} EQUAL -1 AND NOT QNX)
+     message(STATUS "Setting warnings as errors...")
+     set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+ endif()
+diff --git a/cmake/modules/FindThreads.cmake b/cmake/modules/FindThreads.cmake
+index 8a1f2197b..4e556334d 100644
+--- a/cmake/modules/FindThreads.cmake
++++ b/cmake/modules/FindThreads.cmake
+@@ -124,7 +124,11 @@ if(CMAKE_HAVE_PTHREAD_H)
+   # Let's check for the library now.
+   #
+   set(CMAKE_HAVE_THREADS_LIBRARY)
+-  if(NOT THREADS_HAVE_PTHREAD_ARG)
++  if(QNX)
++    set(CMAKE_THREAD_LIBS_INIT "")
++    set(CMAKE_HAVE_THREADS_LIBRARY 1)
++    set(Threads_FOUND TRUE)
++  elseif(NOT THREADS_HAVE_PTHREAD_ARG)
+     # Check if pthread functions are in normal C library.
+     # If the pthread functions already exist in C library, we could just use
+     # them instead of linking to the additional pthread library. We could
+@@ -160,7 +164,7 @@ if(CMAKE_HAVE_PTHREAD_H)
+   _check_pthreads_flag()
+ endif()
+ 
+-if(CMAKE_THREAD_LIBS_INIT OR CMAKE_HAVE_LIBC_PTHREAD_KILL)
++if(CMAKE_THREAD_LIBS_INIT OR CMAKE_HAVE_LIBC_PTHREAD_KILL OR QNX)
+   set(CMAKE_USE_PTHREADS_INIT 1)
+   set(Threads_FOUND TRUE)
+ endif()
+diff --git a/cmake/modules/FindTinyXML2.cmake b/cmake/modules/FindTinyXML2.cmake
+index c05986ad7..d06cc7ce3 100644
+--- a/cmake/modules/FindTinyXML2.cmake
++++ b/cmake/modules/FindTinyXML2.cmake
+@@ -31,13 +31,19 @@ if(TinyXML2_FOUND AND NOT TINYXML2_FROM_THIRDPARTY)
+ else()
+     if(TINYXML2_FROM_THIRDPARTY OR ANDROID)
+         set(TINYXML2_FROM_SOURCE ON)
+-        find_path(TINYXML2_INCLUDE_DIR NAMES tinyxml2.h NO_CMAKE_FIND_ROOT_PATH)
++        find_path(TINYXML2_INCLUDE_DIR NAMES tinyxml2.h
++            PATHS ${PROJECT_SOURCE_DIR}/thirdparty/tinyxml2
++            NO_DEFAULT_PATH
++            NO_CMAKE_FIND_ROOT_PATH)
+     else()
+         find_path(TINYXML2_INCLUDE_DIR NAMES tinyxml2.h)
+     endif()
+ 
+     if(TINYXML2_FROM_SOURCE)
+-        find_path(TINYXML2_SOURCE_DIR NAMES tinyxml2.cpp NO_CMAKE_FIND_ROOT_PATH)
++        find_path(TINYXML2_SOURCE_DIR NAMES tinyxml2.cpp
++            PATHS ${PROJECT_SOURCE_DIR}/thirdparty/tinyxml2
++            NO_DEFAULT_PATH
++            NO_CMAKE_FIND_ROOT_PATH)
+     else()
+         find_library(TINYXML2_LIBRARY tinyxml2)
+     endif()

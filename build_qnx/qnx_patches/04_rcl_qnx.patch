@@ -1,0 +1,23 @@
+diff --git a/rcl_yaml_param_parser/src/parse.c b/rcl_yaml_param_parser/src/parse.c
+index f8dd8ff..d5e3801 100644
+--- a/rcl_yaml_param_parser/src/parse.c
++++ b/rcl_yaml_param_parser/src/parse.c
+@@ -810,6 +810,9 @@ BOOL CALLBACK init_c_locale(
+   c_locale = _create_locale(LC_NUMERIC, "C");
+   return TRUE;
+ }
++#elif defined(__QNX__)
++// QNX does not support POSIX.1-2008 extended locales (locale_t, newlocale, uselocale).
++// Default numeric formatting in QNX is already standard C locale.
+ #else
+ static locale_t c_locale = 0;
+ static once_flag c_locale_once_flag = ONCE_FLAG_INIT;
+@@ -841,6 +844,8 @@ static double strtod_locale_independent(const char *restrict nptr, char **restri
+   }
+ 
+   return _strtod_l(nptr, endptr, c_locale);
++#elif defined(__QNX__)
++  return strtod(nptr, endptr);
+ #else
+   call_once(&c_locale_once_flag, init_c_locale);
+ 
