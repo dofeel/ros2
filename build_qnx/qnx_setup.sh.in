@@ -1,0 +1,244 @@
+# generated from ament_package/template/prefix_level/qnx_setup.sh.in
+
+# ==============================================================================
+# ROS 2 Environment Setup Script for QNX Neutrino RTOS (AArch64 / x86_64)
+# Compatible with POSIX sh, Korn Shell (ksh93/pdksh), and bash.
+#
+# Usage on QNX target board:
+#   . /path/to/install/setup_qnx.sh
+#   - or -
+#   source /path/to/install/setup_qnx.sh
+#
+# Optional custom install path:
+#   export ROS2_INSTALL_DIR=/ota/ros2
+#   . /ota/ros2/setup_qnx.sh
+# ==============================================================================
+
+# 1. Resolve Install Prefix
+# Since a plain shell script can't always determine its own path when being sourced,
+# use either the provided AMENT_CURRENT_PREFIX / ROS2_INSTALL_DIR / COLCON_CURRENT_PREFIX,
+# or dynamically detect it, or fall back to the destination set at configure time
+_ament_prefix_sh_AMENT_CURRENT_PREFIX="@CMAKE_INSTALL_PREFIX@"
+if [ -n "$AMENT_CURRENT_PREFIX" ]; then
+  _ament_prefix_sh_AMENT_CURRENT_PREFIX="$AMENT_CURRENT_PREFIX"
+elif [ -n "$ROS2_INSTALL_DIR" ]; then
+  _ament_prefix_sh_AMENT_CURRENT_PREFIX="$ROS2_INSTALL_DIR"
+elif [ -n "$COLCON_CURRENT_PREFIX" ]; then
+  _ament_prefix_sh_AMENT_CURRENT_PREFIX="$COLCON_CURRENT_PREFIX"
+else
+  _DETECTED_DIR=""
+  # Case A: bash
+  if [ -n "${BASH_SOURCE}" ]; then
+    _DETECTED_DIR="$(cd "$(dirname "${BASH_SOURCE}")" 2>/dev/null && pwd)"
+  # Case B: zsh
+  elif [ -n "${ZSH_VERSION}" ]; then
+    _DETECTED_DIR="$(cd "$(dirname "${(%):-%x}")" 2>/dev/null && pwd)"
+  # Case C: ksh (QNX default /bin/sh is ksh93)
+  elif [ -n "${KSH_VERSION}" ]; then
+    _KSH_FILE=$(eval 'echo "${.sh.file}"' 2>/dev/null || true)
+    if [ -n "${_KSH_FILE}" ] && [ -f "${_KSH_FILE}" ]; then
+      _DETECTED_DIR="$(cd "$(dirname "${_KSH_FILE}")" 2>/dev/null && pwd)"
+    fi
+  fi
+
+  # Case D: Check $0
+  if [ -z "${_DETECTED_DIR}" ]; then
+    case "$0" in
+      *qnx_setup.sh*|*setup_qnx.sh*)
+        _DETECTED_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+        ;;
+    esac
+  fi
+
+  # Case E: Fallback to current directory if valid install tree
+  if [ -z "${_DETECTED_DIR}" ] || [ ! -d "${_DETECTED_DIR}/lib" ]; then
+    if [ -d "./lib" ] && [ -d "./bin" ]; then
+      _DETECTED_DIR="$(pwd)"
+    fi
+  fi
+
+  if [ -n "${_DETECTED_DIR}" ] && [ -d "${_DETECTED_DIR}" ]; then
+    _ament_prefix_sh_AMENT_CURRENT_PREFIX="${_DETECTED_DIR}"
+  fi
+fi
+
+if [ ! -d "$_ament_prefix_sh_AMENT_CURRENT_PREFIX" ]; then
+  echo "The path \"$_ament_prefix_sh_AMENT_CURRENT_PREFIX\" doesn't exist. Set the environment variable \"AMENT_CURRENT_PREFIX\" or \"ROS2_INSTALL_DIR\" explicitly." 1>&2
+  unset _ament_prefix_sh_AMENT_CURRENT_PREFIX
+  return 1
+fi
+
+# Set type of shell if not already set
+: ${AMENT_SHELL:=sh}
+
+# Function to source another script with conditional trace output
+_ament_prefix_sh_source_script() {
+  if [ -f "$1" ]; then
+    if [ -n "$AMENT_TRACE_SETUP_FILES" ]; then
+      echo "# . \"$1\""
+    fi
+    . "$1"
+  else
+    echo "not found: \"$1\"" 1>&2
+  fi
+}
+
+# Function to prepend non-duplicate values to environment variables
+# using colons as separators and avoiding trailing/leading separators
+ament_prepend_unique_value() {
+  _listname="$1"
+  _value="$2"
+
+  eval _values=\"\$$_listname\"
+  _duplicate=
+  _ament_prepend_unique_value_IFS=$IFS
+  IFS=":"
+  if [ "$AMENT_SHELL" = "zsh" ]; then
+    ament_zsh_to_array _values
+  fi
+  for _item in $_values; do
+    if [ -z "$_item" ]; then
+      continue
+    fi
+    if [ "$_item" = "$_value" ]; then
+      _duplicate=1
+    fi
+  done
+  unset _item
+
+  if [ -z "$_duplicate" ]; then
+    if [ -z "$_values" ]; then
+      eval export $_listname=\"$_value\"
+    else
+      unset IFS
+      eval export $_listname=\"$_value:\$$_listname\"
+    fi
+  fi
+  IFS=$_ament_prepend_unique_value_IFS
+  unset _ament_prepend_unique_value_IFS
+  unset _duplicate
+  unset _values
+  unset _value
+  unset _listname
+}
+
+# ------------------------------------------------------------------------------
+# 1. QNX Shared Memory & Lock Directory Configuration
+# Boost Interprocess segments in /dev/shmem;
+# Fast-DDS flock locks in /userdata/tmp (QNX tmpfs /dev/shmem does not support flock)
+# ------------------------------------------------------------------------------
+export TMPDIR="${TMPDIR:-/dev/shmem}"
+export BOOST_INTERPROCESS_SHARED_DIR="${BOOST_INTERPROCESS_SHARED_DIR:-/dev/shmem}"
+export FASTDDS_LOCK_DIR="${FASTDDS_LOCK_DIR:-/userdata/tmp}"
+
+# ------------------------------------------------------------------------------
+# 2. Fast-DDS XML Shared Memory Configuration
+# ------------------------------------------------------------------------------
+if [ -z "${FASTDDS_DEFAULT_PROFILES_FILE}" ]; then
+  for _shm_candidate in \
+    "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/fastdds_shm.xml" \
+    "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/etc/fastdds_shm.xml" \
+    "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/etc/fastdds_profiles.xml"; do
+    if [ -f "$_shm_candidate" ]; then
+      export FASTDDS_DEFAULT_PROFILES_FILE="$_shm_candidate"
+      break
+    fi
+  done
+fi
+if [ -n "${FASTDDS_DEFAULT_PROFILES_FILE}" ]; then
+  export FASTRTPS_DEFAULT_PROFILES_FILE="${FASTDDS_DEFAULT_PROFILES_FILE}"
+fi
+
+# ------------------------------------------------------------------------------
+# 3. Writable Runtime Paths for QNX Target (rootfs is often read-only)
+# ------------------------------------------------------------------------------
+export HOME="${HOME:-/tmp}"
+export ROS_LOG_DIR="${ROS_LOG_DIR:-/tmp/ros_log}"
+if [ ! -d "${ROS_LOG_DIR}" ]; then
+  mkdir -p "${ROS_LOG_DIR}" 2>/dev/null || true
+fi
+
+# ------------------------------------------------------------------------------
+# 4. Core ROS 2 Prefix & Environment Paths
+# ------------------------------------------------------------------------------
+export COLCON_CURRENT_PREFIX="$_ament_prefix_sh_AMENT_CURRENT_PREFIX"
+export AMENT_CURRENT_PREFIX="$_ament_prefix_sh_AMENT_CURRENT_PREFIX"
+export ROS2_INSTALL_DIR="$_ament_prefix_sh_AMENT_CURRENT_PREFIX"
+
+ament_prepend_unique_value AMENT_PREFIX_PATH "$_ament_prefix_sh_AMENT_CURRENT_PREFIX"
+ament_prepend_unique_value COLCON_PREFIX_PATH "$_ament_prefix_sh_AMENT_CURRENT_PREFIX"
+
+# Binary executables
+ament_prepend_unique_value PATH "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/bin"
+
+# Dynamic library path (QNX ldqnx-64.so / ldqnx.so runtime linker)
+ament_prepend_unique_value LD_LIBRARY_PATH "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/lib"
+
+# Prepend vendor library paths if present
+for _vlib in \
+  "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/opt/spdlog_vendor/lib" \
+  "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/opt/console_bridge_vendor/lib" \
+  "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/opt/gz_utils_vendor/lib"; do
+  if [ -d "$_vlib" ]; then
+    ament_prepend_unique_value LD_LIBRARY_PATH "$_vlib"
+  fi
+done
+
+# Standard QNX library paths
+for _syslib in /proc/boot /lib /usr/lib /lib/dll /usr/local/lib; do
+  if [ -d "$_syslib" ]; then
+    ament_prepend_unique_value LD_LIBRARY_PATH "$_syslib"
+  fi
+done
+
+# Python packages (if Python environment exists on QNX target)
+for _py_site in "$_ament_prefix_sh_AMENT_CURRENT_PREFIX"/lib/python*/site-packages; do
+  if [ -d "$_py_site" ]; then
+    ament_prepend_unique_value PYTHONPATH "$_py_site"
+  fi
+done
+
+# ------------------------------------------------------------------------------
+# 5. Core ROS 2 & Middleware Runtime Defaults
+# ------------------------------------------------------------------------------
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+: ${ROS_DISTRO:="@ROS_DISTRO@"}
+export ROS_DISTRO
+: ${ROS_VERSION:=2}
+export ROS_VERSION
+: ${ROS_PYTHON_VERSION:=3}
+export ROS_PYTHON_VERSION
+: ${ROS_DOMAIN_ID:=0}
+export ROS_DOMAIN_ID
+
+# ------------------------------------------------------------------------------
+# 6. Chain-load standard local_setup.sh (if Python is available or requested)
+# ------------------------------------------------------------------------------
+if [ -f "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/local_setup.sh" ]; then
+  if command -v python3 >/dev/null 2>&1 || [ "${ROS_SOURCE_LOCAL_SETUP}" = "1" ]; then
+    _ament_prefix_sh_source_script "$_ament_prefix_sh_AMENT_CURRENT_PREFIX/local_setup.sh"
+  fi
+fi
+
+# ------------------------------------------------------------------------------
+# 7. Print Status Summary (suppressed if ROS_QUIET=1)
+# ------------------------------------------------------------------------------
+if [ "${ROS_QUIET}" != "1" ]; then
+  echo "========================================================"
+  echo " ROS 2 (${ROS_DISTRO}) Environment Configured for QNX"
+  echo " ROS2_INSTALL_DIR   : ${ROS2_INSTALL_DIR}"
+  echo " AMENT_PREFIX_PATH  : ${AMENT_PREFIX_PATH}"
+  echo " RMW_IMPLEMENTATION : ${RMW_IMPLEMENTATION}"
+  echo " ROS_DOMAIN_ID      : ${ROS_DOMAIN_ID}"
+  echo " ROS_LOG_DIR        : ${ROS_LOG_DIR}"
+  echo " TMPDIR (/dev/shmem): ${TMPDIR}"
+  echo " FASTDDS_LOCK_DIR   : ${FASTDDS_LOCK_DIR}"
+  echo " FASTDDS PROFILES   : ${FASTDDS_DEFAULT_PROFILES_FILE:-[Built-in / None]}"
+  echo " LD_LIBRARY_PATH    : ${LD_LIBRARY_PATH}"
+  echo " PATH               : ${PATH}"
+  echo "========================================================"
+fi
+
+# Clean up internal variables & functions
+unset _ament_prefix_sh_source_script
+unset _ament_prefix_sh_AMENT_CURRENT_PREFIX

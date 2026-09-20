@@ -192,26 +192,27 @@ tar -xzvf ros2_qnx_install.tar.gz -C /opt/ros2
 ```
 
 ### 3. 配置运行环境变量
-编写启动配置脚本 `/opt/ros2/env.sh`：
+编译阶段已自动将专为 QNX Neutrino RTOS 深度优化的设备端环境脚本安装至 `install/setup_qnx.sh`。
+该脚本完全兼容 POSIX `/bin/sh` 与 QNX 默认的 Korn Shell (`/bin/ksh`)，能自适应安装路径，并自动加载动态库与 Ament 索引：
+
 ```sh
-#!/bin/sh
-export ROS_ROOT=/opt/ros2/install
-export PATH=$ROS_ROOT/bin:$PATH
-export LD_LIBRARY_PATH=$ROS_ROOT/lib:$ROS_ROOT/opt/console_bridge_vendor/lib:$ROS_ROOT/opt/spdlog_vendor/lib:$LD_LIBRARY_PATH
-export AMENT_PREFIX_PATH=$ROS_ROOT
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-export ROS_DOMAIN_ID=0
+# 进入解压目录并生效环境（POSIX sh / ksh 支持点命令或 source）
+. /opt/ros2/install/setup_qnx.sh
+
+# 如部署在非标准路径且自动探测受限，可手动显式指定：
+# export ROS2_INSTALL_DIR=/your/custom/install/path
+# . /your/custom/install/path/setup_qnx.sh
 ```
 
 ### 4. 验证节点通信
 - **终端 1 启动发布者**：
   ```sh
-  source /opt/ros2/env.sh
+  . /opt/ros2/install/setup_qnx.sh
   talker
   ```
 - **终端 2 启动订阅者**：
   ```sh
-  source /opt/ros2/env.sh
+  . /opt/ros2/install/setup_qnx.sh
   listener
   ```
 若两端正常收发消息，即代表 QNX 8.0 上的 ROS 2 核心通信栈运行成功！

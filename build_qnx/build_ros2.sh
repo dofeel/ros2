@@ -85,6 +85,21 @@ if [ -d "${WS_DIR}/install/opt" ]; then
     find "${WS_DIR}/install/opt" -name "*.so*" -exec cp -d -P {} "${WS_DIR}/install/lib/" \; 2>/dev/null || true
 fi
 
+# Configure and install QNX target environment setup script from template
+TEMPLATE_FILE="${SCRIPT_DIR}/qnx_setup.sh.in"
+if [ ! -f "${TEMPLATE_FILE}" ] && [ -f "${WS_DIR}/src/ament/ament_package/ament_package/template/prefix_level/qnx_setup.sh.in" ]; then
+    TEMPLATE_FILE="${WS_DIR}/src/ament/ament_package/ament_package/template/prefix_level/qnx_setup.sh.in"
+fi
+
+if [ -f "${TEMPLATE_FILE}" ] && [ -d "${WS_DIR}/install" ]; then
+    echo "Configuring and installing QNX target setup script to ${WS_DIR}/install/setup_qnx.sh..."
+    sed -e "s|@CMAKE_INSTALL_PREFIX@|${WS_DIR}/install|g" \
+        -e "s|@ROS_DISTRO@|lyrical|g" \
+        "${TEMPLATE_FILE}" > "${WS_DIR}/install/setup_qnx.sh"
+    chmod +x "${WS_DIR}/install/setup_qnx.sh" 2>/dev/null || true
+    cp -f "${WS_DIR}/install/setup_qnx.sh" "${SCRIPT_DIR}/setup_qnx.sh" 2>/dev/null || true
+fi
+
 echo "=========================================================="
 echo " [Phase 2] ROS 2 Core build completed successfully!"
 echo "=========================================================="

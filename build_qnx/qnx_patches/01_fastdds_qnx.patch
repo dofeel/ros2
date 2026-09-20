@@ -85,3 +85,183 @@ index c05986ad7..d06cc7ce3 100644
      else()
          find_library(TINYXML2_LIBRARY tinyxml2)
      endif()
+diff --git a/src/cpp/rtps/builtin/discovery/endpoint/EDPStatic.cpp b/src/cpp/rtps/builtin/discovery/endpoint/EDPStatic.cpp
+index 060ca737e..86f4f3648 100644
+--- a/src/cpp/rtps/builtin/discovery/endpoint/EDPStatic.cpp
++++ b/src/cpp/rtps/builtin/discovery/endpoint/EDPStatic.cpp
+@@ -484,15 +484,9 @@ bool EDPStaticProperty::fromProperty(
+         int a, b, c, d;
+         char ch;
+         ss >> a >> ch >> b >> ch >> c >> ch >> d;
+-        bool success = !ss.fail() && ss.eof();
+-        if (success)
+-        {
+-            m_entityId.value[0] = (octet)a;
+-            m_entityId.value[1] = (octet)b;
+-            m_entityId.value[2] = (octet)c;
+-            m_entityId.value[3] = (octet)d;
+-        }
+-        return success;
++        m_entityId.value[0] = (octet)a; m_entityId.value[1] = (octet)b;
++        m_entityId.value[2] = (octet)c; m_entityId.value[3] = (octet)d;
++        return true;
+     }
+     else if (0 == prop.first.compare(0, 4, "EDS_"))
+     {
+@@ -526,33 +520,20 @@ bool EDPStaticProperty::fromProperty(
+         ss >> m_userId;
+         ss.clear();
+         ss.str(std::string());
+-        size_t count = std::count(prop.second.begin(), prop.second.end(), '.');
+-        // At most 4 octets in an EntityId_t, so at most 3 dots.
+-        if (count > 3)
+-        {
+-            return false;
+-        }
+-        // Left-pad with zero octets until a full 'a.b.c.d' representation is formed, and then
+-        // parse it the same way as done above for the 'eProsimaEDPStatic' properties. This way,
+-        // any other malformed input (consecutive dots, leading/trailing dots, non-numeric
+-        // characters...) is rejected instead of being silently accepted.
+-        for (size_t i = count; i < 3; ++i)
+-        {
+-            ss << "0.";
+-        }
+         ss << prop.second;
+-        int a, b, c, d;
+-        char ch;
+-        ss >> a >> ch >> b >> ch >> c >> ch >> d;
+-        bool success = !ss.fail() && ss.eof();
+-        if (success)
++        size_t count = std::count(prop.second.begin(), prop.second.end(), '.');
++        int value = 0;
++        char ch = 0;
++        for (size_t it = 0; it <= count; ++it)
+         {
+-            m_entityId.value[0] = (octet)a;
+-            m_entityId.value[1] = (octet)b;
+-            m_entityId.value[2] = (octet)c;
+-            m_entityId.value[3] = (octet)d;
++            ss >> value;
++            m_entityId.value[3 - (count - it)] = (octet)value;
++            if (it != count)
++            {
++                ss >> ch;
++            }
+         }
+-        return success;
++        return true;
+     }
+     return false;
+ }
+diff --git a/src/cpp/rtps/domain/RTPSDomainImpl.hpp b/src/cpp/rtps/domain/RTPSDomainImpl.hpp
+index 75b841d96..431f700ec 100644
+--- a/src/cpp/rtps/domain/RTPSDomainImpl.hpp
++++ b/src/cpp/rtps/domain/RTPSDomainImpl.hpp
+@@ -20,7 +20,7 @@
+ #include <memory>
+ #include <unordered_map>
+ 
+-#if defined(_WIN32) || defined(__unix__)
++#if defined(_WIN32) || (defined(__unix__) && !defined(__QNX__))
+ #include <FileWatch.hpp>
+ #endif // defined(_WIN32) || defined(__unix__)
+ 
+diff --git a/src/cpp/utils/SystemInfo.cpp b/src/cpp/utils/SystemInfo.cpp
+index 3fb868737..f98d41dfb 100644
+--- a/src/cpp/utils/SystemInfo.cpp
++++ b/src/cpp/utils/SystemInfo.cpp
+@@ -234,7 +234,7 @@ FileWatchHandle SystemInfo::watch_file(
+         const fastdds::rtps::ThreadSettings& watch_thread_config,
+         const fastdds::rtps::ThreadSettings& callback_thread_config)
+ {
+-#if defined(_WIN32) || defined(__unix__)
++#if defined(_WIN32) || (defined(__unix__) && !defined(__QNX__))
+     return FileWatchHandle (new filewatch::FileWatch<std::string>(filename,
+                    [callback](const std::string& /*path*/, const filewatch::Event change_type)
+                    {
+@@ -260,7 +260,7 @@ FileWatchHandle SystemInfo::watch_file(
+ void SystemInfo::stop_watching_file(
+         FileWatchHandle& handle)
+ {
+-#if defined(_WIN32) || defined(__unix__)
++#if defined(_WIN32) || (defined(__unix__) && !defined(__QNX__))
+     handle.reset();
+ #endif // if defined(_WIN32) || defined(__unix__)
+     static_cast<void>(handle);
+diff --git a/src/cpp/utils/SystemInfo.hpp b/src/cpp/utils/SystemInfo.hpp
+index 709d24576..1417fe7b9 100644
+--- a/src/cpp/utils/SystemInfo.hpp
++++ b/src/cpp/utils/SystemInfo.hpp
+@@ -31,14 +31,14 @@
+ #include <fastdds/utils/IPFinder.hpp>
+ #include <utils/Host.hpp>
+ 
+-#if defined(_WIN32) || defined(__unix__)
++#if defined(_WIN32) || (defined(__unix__) && !defined(__QNX__))
+ #include <FileWatch.hpp>
+ #endif // defined(_WIN32) || defined(__unix__)
+ 
+ namespace eprosima {
+ 
+ using ReturnCode_t = eprosima::fastdds::dds::ReturnCode_t;
+-#if defined(_WIN32) || defined(__unix__)
++#if defined(_WIN32) || (defined(__unix__) && !defined(__QNX__))
+ using FileWatchHandle = std::unique_ptr<filewatch::FileWatch<std::string>>;
+ #else
+ using FileWatchHandle = void*;
+diff --git a/src/cpp/utils/shared_memory/SharedDir.hpp b/src/cpp/utils/shared_memory/SharedDir.hpp
+index 3c1320007..181889465 100644
+--- a/src/cpp/utils/shared_memory/SharedDir.hpp
++++ b/src/cpp/utils/shared_memory/SharedDir.hpp
+@@ -19,6 +19,8 @@
+ #include <boost/interprocess/detail/shared_dir_helpers.hpp>
+ 
+ #ifdef __QNXNTO__
++#include <cstdlib>
++#include <cstring>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <errno.h>
+@@ -81,20 +83,29 @@ public:
+             const std::string& filename)
+     {
+ #ifdef __QNXNTO__
+-        static const char defaultdir[] = "/var/lock";
++        // QNX tmpfs (/dev/shmem, /tmp) does not support flock().
++        // Only read dedicated FASTDDS_LOCK_DIR, or fallback to /userdata/tmp.
++        const char* env_dir = std::getenv("FASTDDS_LOCK_DIR");
++        std::string defaultdir = (env_dir && env_dir[0] != '\0') ? env_dir : "/userdata/tmp";
++
++        while (defaultdir.length() > 1 && defaultdir.back() == '/')
++        {
++            defaultdir.pop_back();
++        }
++
+         struct stat buf;
+         // check directory status
+-        if (stat(defaultdir, &buf) != 0)
++        if (stat(defaultdir.c_str(), &buf) != 0)
+         {
+             // directory not found, create it
+             if (errno == ENOENT)
+             {
+-                mkdir(defaultdir, 0777);
++                mkdir(defaultdir.c_str(), 0777);
+             }
+             // if another error then throw exception
+             else
+             {
+-                std::string err("get_file_path() ");
++                std::string err("get_lock_path() ");
+                 err = err + strerror(errno);
+                 throw std::runtime_error(err);
+             }
+@@ -103,7 +114,7 @@ public:
+         {
+             // directory exists do nothing
+         }
+-        return (std::string(defaultdir) + "/" + filename);
++        return (defaultdir + "/" + filename);
+ #else
+         return SharedDir::get_file_path(filename);
+ #endif  // __QNXNTO__

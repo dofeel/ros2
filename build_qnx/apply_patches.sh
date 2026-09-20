@@ -38,6 +38,9 @@ fi
 if [ -d "${WS_DIR}/src/yaml-cpp" ] && [ -f "${PATCHES_DIR}/extra_files/yaml_cpp_package.xml" ]; then
     cp -f "${PATCHES_DIR}/extra_files/yaml_cpp_package.xml" "${WS_DIR}/src/yaml-cpp/package.xml"
 fi
+if [ -d "${WS_DIR}/src/ament/ament_package/ament_package/template/prefix_level" ] && [ -f "${SCRIPT_DIR}/qnx_setup.sh.in" ]; then
+    cp -f "${SCRIPT_DIR}/qnx_setup.sh.in" "${WS_DIR}/src/ament/ament_package/ament_package/template/prefix_level/qnx_setup.sh.in"
+fi
 if [ -d "${WS_DIR}/src/eProsima/googletest" ]; then
     touch "${WS_DIR}/src/eProsima/googletest/COLCON_IGNORE"
 fi
